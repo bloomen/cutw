@@ -12,106 +12,27 @@ namespace tw = transwarp;
 
 TEST_CASE("Stream")
 {
-    cutw::Stream stream;
-    REQUIRE(stream.get());
-}
-
-TEST_CASE("HostArray_move_constructor")
-{
-    cutw::HostArray<float> a{3};
-    const auto a_data = a.data();
-    auto b = std::move(a);
-    REQUIRE(!a.data());
-    REQUIRE(a.size() == 0);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
-}
-
-TEST_CASE("HostArray_move_assignment")
-{
-    cutw::HostArray<float> a{3};
-    const auto a_data = a.data();
-    cutw::HostArray<float> b{4};
-    b = std::move(a);
-    REQUIRE(!a.data());
-    REQUIRE(a.size() == 0);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
-}
-
-TEST_CASE("HostArray_swap")
-{
-    cutw::HostArray<float> a{3};
-    const auto a_data = a.data();
-    cutw::HostArray<float> b{4};
-    const auto b_data = b.data();
-    std::swap(a, b);
-    REQUIRE(a.data());
-    REQUIRE(a.data() == b_data);
-    REQUIRE(a.size() == 4);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
-}
-
-TEST_CASE("DeviceArray_move_constructor")
-{
-    cutw::DeviceArray<float> a{3};
-    const auto a_data = a.data();
-    auto b = std::move(a);
-    REQUIRE(!a.data());
-    REQUIRE(a.size() == 0);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
-}
-
-TEST_CASE("DeviceArray_move_assignment")
-{
-    cutw::DeviceArray<float> a{3};
-    const auto a_data = a.data();
-    cutw::DeviceArray<float> b{4};
-    b = std::move(a);
-    REQUIRE(!a.data());
-    REQUIRE(a.size() == 0);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
-}
-
-TEST_CASE("DeviceArray_swap")
-{
-    cutw::DeviceArray<float> a{3};
-    const auto a_data = a.data();
-    cutw::DeviceArray<float> b{4};
-    const auto b_data = b.data();
-    std::swap(a, b);
-    REQUIRE(a.data());
-    REQUIRE(a.data() == b_data);
-    REQUIRE(a.size() == 4);
-    REQUIRE(b.data());
-    REQUIRE(b.data() == a_data);
-    REQUIRE(b.size() == 3);
+    auto stream = cutw::Stream::create();
+    REQUIRE(stream->get());
 }
 
 TEST_CASE("CopyToDevice_CopyToHost")
 {
-    auto host_task = tw::make_value_task(std::make_shared<cutw::HostArray<float>>(3));
-    host_task->get()->data()[0] = 1;
-    host_task->get()->data()[1] = 2;
-    host_task->get()->data()[2] = 3;
-    auto dev0_task = tw::make_value_task(std::make_shared<cutw::DeviceArray<float>>(3));
-    auto dev_task = tw::make_task(tw::consume, cutw::CopyToDevice<float>{}, host_task, dev0_task);
+    auto host = cutw::HostArray<float>::create(3);
+    host->data()[0] = 1;
+    host->data()[1] = 2;
+    host->data()[2] = 3;
+    auto host_task = cutw::value_task("host", cutw::out(nullptr, host));
+    auto dev0_task = cutw::value_task("device", cutw::out(nullptr, cutw::DeviceArray<float>::create(3)));
+    auto dev_task = cutw::task("CopyToDevice", cutw::CopyToDevice<float>{}, host_task, dev0_task);
     dev_task->schedule_all();
-    auto dev = dev_task->get();
+    auto dev = cutw::get<0>(dev_task->get());
     REQUIRE(dev->data());
     REQUIRE(dev->size() == 3);
-    auto host1_task = tw::make_value_task(std::make_shared<cutw::HostArray<float>>(3));
-    auto host2_task = tw::make_task(tw::consume, cutw::CopyToHost<float>{}, host1_task, dev_task);
+    auto host1_task = cutw::value_task("host1", cutw::out(nullptr, cutw::HostArray<float>::create(3)));
+    auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
     host2_task->schedule_all();
-    auto host2 = host2_task->get();
+    auto host2 = cutw::get<0>(host2_task->get());
     REQUIRE(host2->data());
     REQUIRE(host2->size() == 3);
     REQUIRE(host2->data()[0] == 1);
@@ -121,22 +42,23 @@ TEST_CASE("CopyToDevice_CopyToHost")
 
 TEST_CASE("CopyToDevice_CopyToHost_async")
 {
-    auto stream_task = tw::make_value_task(std::make_shared<cutw::Stream>());
-    auto host_task = tw::make_value_task(std::make_shared<cutw::HostArray<float>>(3));
-    host_task->get()->data()[0] = 1;
-    host_task->get()->data()[1] = 2;
-    host_task->get()->data()[2] = 3;
-    auto dev0_task = tw::make_value_task(std::make_shared<cutw::DeviceArray<float>>(3));
-    auto dev_task = tw::make_task(tw::consume, cutw::CopyToDeviceAsync<float>{}, host_task, dev0_task, stream_task);
+    auto stream = cutw::Stream::create();
+    auto host = cutw::HostArray<float>::create(3);
+    host->data()[0] = 1;
+    host->data()[1] = 2;
+    host->data()[2] = 3;
+    auto host_task = cutw::value_task("host", cutw::out(stream, host));
+    auto dev0_task = cutw::value_task("device", cutw::out(stream, cutw::DeviceArray<float>::create(3)));
+    auto dev_task = cutw::task("CopyToDevice", cutw::CopyToDevice<float>{}, host_task, dev0_task);
     dev_task->schedule_all();
-    auto dev = dev_task->get();
+    auto dev = cutw::get<0>(dev_task->get());
     REQUIRE(dev->data());
     REQUIRE(dev->size() == 3);
-    auto host1_task = tw::make_value_task(std::make_shared<cutw::HostArray<float>>(3));
-    auto host2_task = tw::make_task(tw::consume, cutw::CopyToHostAsync<float>{}, host1_task, dev_task, stream_task);
-    auto sync_task = tw::make_task(tw::consume, cutw::StreamSync<cutw::HostArray<float>>{}, host2_task, stream_task);
+    auto host1_task = cutw::value_task("host1", cutw::out(stream, cutw::HostArray<float>::create(3)));
+    auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
+    auto sync_task = cutw::task("sync", cutw::StreamSync<cutw::HostArray<float>>{}, host2_task);
     sync_task->schedule_all();
-    auto host2 = sync_task->get();
+    auto host2 = cutw::get<0>(sync_task->get());
     REQUIRE(host2->data());
     REQUIRE(host2->size() == 3);
     REQUIRE(host2->data()[0] == 1);

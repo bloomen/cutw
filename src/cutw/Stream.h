@@ -10,7 +10,11 @@ namespace cutw
 class Stream
 {
 public:
-    Stream();
+    static std::shared_ptr<Stream> create()
+    {
+        return std::shared_ptr<Stream>{new Stream};
+    }
+
     ~Stream();
 
     CUstream_st* get() const;
@@ -18,6 +22,7 @@ public:
     void sync();
 
 private:
+    Stream();
     struct impl;
     std::unique_ptr<impl> impl_;
 };

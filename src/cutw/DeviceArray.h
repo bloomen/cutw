@@ -3,7 +3,7 @@
 #include <cassert>
 #include <algorithm>
 #include <cstddef>
-
+#include <memory>
 
 namespace cutw
 {
@@ -21,48 +21,25 @@ template<typename T>
 class DeviceArray
 {
 public:
-    DeviceArray(T* const data, const std::size_t size)
-        : data_{data}
-        , size_{size}
+    static std::shared_ptr<DeviceArray> create(T* const data, const std::size_t size)
     {
-        assert(data_);
-        assert(size_ > 0);
+        return std::shared_ptr<DeviceArray>{new DeviceArray{data, size}};
     }
 
-    DeviceArray(const std::size_t size)
-        : size_{size}
+    static std::shared_ptr<DeviceArray> create(const std::size_t size)
     {
-        assert(size_ > 0);
-        detail::device_allocate(reinterpret_cast<void*&>(data_), size_ * sizeof(T));
+        return std::shared_ptr<DeviceArray>{new DeviceArray{size}};
     }
 
     ~DeviceArray()
     {
-        free();
+        detail::device_free(data_);
     }
 
     DeviceArray(const DeviceArray&) = delete;
     DeviceArray& operator=(const DeviceArray&) = delete;
-
-    DeviceArray(DeviceArray&& o)
-    {
-        swap(o);
-    }
-
-    DeviceArray& operator=(DeviceArray&& o)
-    {
-        if (this != &o)
-        {
-            if (data_)
-            {
-                free();
-                data_ = nullptr;
-                size_ = 0;
-            }
-            swap(o);
-        }
-        return *this;
-    }
+    DeviceArray(DeviceArray&&) = delete;
+    DeviceArray& operator=(DeviceArray&&) = delete;
 
     const T* data() const
     {
@@ -80,19 +57,20 @@ public:
     }
 
 private:
-    void free()
+    DeviceArray(T* const data, const std::size_t size)
+        : data_{data}
+        , size_{size}
     {
-        if (!data_)
-        {
-            return;
-        }
-        detail::device_free(data_);
+        assert(data_);
+        assert(size_ > 0);
     }
 
-    void swap(DeviceArray& o)
+    explicit
+    DeviceArray(const std::size_t size)
+        : size_{size}
     {
-        std::swap(data_, o.data_);
-        std::swap(size_, o.size_);
+        assert(size_ > 0);
+        detail::device_allocate(reinterpret_cast<void*&>(data_), size_ * sizeof(T));
     }
 
     T* data_ = nullptr;

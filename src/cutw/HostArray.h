@@ -3,6 +3,7 @@
 #include <cassert>
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 
 
 namespace cutw
@@ -21,52 +22,32 @@ template<typename T>
 class HostArray
 {
 public:
-    HostArray(T* const data, const std::size_t size, const bool pinned = false)
-        : pinned_{pinned}
-        , data_{data}
-        , size_{size}
+    static std::shared_ptr<HostArray> create(T* const data, const std::size_t size, const bool pinned = false)
     {
-        assert(data_);
-        assert(size_ > 0);
+        return std::shared_ptr<HostArray>{new HostArray{data, size, pinned}};
     }
 
-    explicit
-    HostArray(const std::size_t size)
-        : pinned_{true}
-        , size_{size}
+    static std::shared_ptr<HostArray> create(const std::size_t size)
     {
-        assert(size_ > 0);
-        detail::host_allocate(reinterpret_cast<void*&>(data_), size_ * sizeof(T));
+        return std::shared_ptr<HostArray>{new HostArray{size}};
     }
 
     ~HostArray()
     {
-        free();
+        if (pinned_)
+        {
+            detail::host_free(data_);
+        }
+        else
+        {
+            delete[] data_;
+        }
     }
 
     HostArray(const HostArray&) = delete;
     HostArray& operator=(const HostArray&) = delete;
-
-    HostArray(HostArray&& o)
-    {
-        swap(o);
-    }
-
-    HostArray& operator=(HostArray&& o)
-    {
-        if (this != &o)
-        {
-            if (data_)
-            {
-                free();
-                pinned_ = false;
-                data_ = nullptr;
-                size_ = 0;
-            }
-            swap(o);
-        }
-        return *this;
-    }
+    HostArray(HostArray&&) = delete;
+    HostArray& operator=(HostArray&&) = delete;
 
     const T* data() const
     {
@@ -84,27 +65,22 @@ public:
     }
 
 private:
-    void free()
+    HostArray(T* const data, const std::size_t size, const bool pinned = false)
+        : pinned_{pinned}
+        , data_{data}
+        , size_{size}
     {
-        if (!data_)
-        {
-            return;
-        }
-        if (pinned_)
-        {
-            detail::host_free(data_);
-        }
-        else
-        {
-            delete[] data_;
-        }
+        assert(data_);
+        assert(size_ > 0);
     }
 
-    void swap(HostArray& o)
+    explicit
+    HostArray(const std::size_t size)
+        : pinned_{true}
+        , size_{size}
     {
-        std::swap(pinned_, o.pinned_);
-        std::swap(data_, o.data_);
-        std::swap(size_, o.size_);
+        assert(size_ > 0);
+        detail::host_allocate(reinterpret_cast<void*&>(data_), size_ * sizeof(T));
     }
 
     bool pinned_ = false;
