@@ -22,14 +22,14 @@ TEST_CASE("CopyToDevice_CopyToHost")
     host->data()[0] = 1;
     host->data()[1] = 2;
     host->data()[2] = 3;
-    auto host_task = cutw::value_task("host", cutw::out(nullptr, host));
-    auto dev0_task = cutw::value_task("device", cutw::out(nullptr, cutw::DeviceArray<float>::create(3)));
+    auto host_task = cutw::value_task("host", cutw::out(host));
+    auto dev0_task = cutw::value_task("device", cutw::out(cutw::DeviceArray<float>::create(3)));
     auto dev_task = cutw::task("CopyToDevice", cutw::CopyToDevice<float>{}, host_task, dev0_task);
     dev_task->schedule_all();
     auto dev = cutw::get<0>(dev_task->get());
     REQUIRE(dev->data());
     REQUIRE(dev->size() == 3);
-    auto host1_task = cutw::value_task("host1", cutw::out(nullptr, cutw::HostArray<float>::create(3)));
+    auto host1_task = cutw::value_task("host1", cutw::out(cutw::HostArray<float>::create(3)));
     auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
     host2_task->schedule_all();
     auto host2 = cutw::get<0>(host2_task->get());
@@ -47,14 +47,14 @@ TEST_CASE("CopyToDevice_CopyToHost_async")
     host->data()[0] = 1;
     host->data()[1] = 2;
     host->data()[2] = 3;
-    auto host_task = cutw::value_task("host", cutw::out(stream, host));
-    auto dev0_task = cutw::value_task("device", cutw::out(stream, cutw::DeviceArray<float>::create(3)));
+    auto host_task = cutw::value_task("host", cutw::out(host).s(stream));
+    auto dev0_task = cutw::value_task("device", cutw::out(cutw::DeviceArray<float>::create(3)).s(stream));
     auto dev_task = cutw::task("CopyToDevice", cutw::CopyToDevice<float>{}, host_task, dev0_task);
     dev_task->schedule_all();
     auto dev = cutw::get<0>(dev_task->get());
     REQUIRE(dev->data());
     REQUIRE(dev->size() == 3);
-    auto host1_task = cutw::value_task("host1", cutw::out(stream, cutw::HostArray<float>::create(3)));
+    auto host1_task = cutw::value_task("host1", cutw::out(cutw::HostArray<float>::create(3)).s(stream));
     auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
     auto sync_task = cutw::task("sync", cutw::SyncStream<cutw::HostArray<float>>{}, host2_task);
     sync_task->schedule_all();
@@ -69,11 +69,11 @@ TEST_CASE("CopyToDevice_CopyToHost_async")
 TEST_CASE("CreateRandomGenerator_GenerateRandomUniform")
 {
     auto stream = cutw::Stream::create();
-    auto dev_task = cutw::value_task("device", cutw::out(stream, cutw::DeviceArray<float>::create(3)));
-    auto seed_task = cutw::value_task("seed", cutw::out(nullptr, std::make_shared<std::size_t>(42)));
+    auto dev_task = cutw::value_task("device", cutw::out(cutw::DeviceArray<float>::create(3)).s(stream));
+    auto seed_task = cutw::value_task("seed", cutw::out(std::make_shared<std::size_t>(42)));
     auto gen_task = cutw::task("generator", cutw::CreateRandomGenerator{}, seed_task);
     auto uniform_task = cutw::task("uniform", cutw::GenerateRandomUniform<float>{}, gen_task, dev_task);
-    auto host1_task = cutw::value_task("host1", cutw::out(stream, cutw::HostArray<float>::create(3)));
+    auto host1_task = cutw::value_task("host1", cutw::out(cutw::HostArray<float>::create(3)).s(stream));
     auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
     auto sync_task = cutw::task("sync", cutw::SyncStream<cutw::HostArray<float>>{}, host2_task);
     sync_task->schedule_all();

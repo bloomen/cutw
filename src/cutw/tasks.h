@@ -53,10 +53,15 @@ template<typename... Args>
 class Output
 {
 public:
-    Output(std::shared_ptr<Stream> stream, std::shared_ptr<Args>... args)
-        : stream_{std::move(stream)}
-        , data_{std::make_tuple(std::move(args)...)}
+    Output(std::shared_ptr<Args>... args)
+        : data_{std::make_tuple(std::move(args)...)}
     {
+    }
+
+    const Output& s(std::shared_ptr<Stream> stream)
+    {
+        stream_ = std::move(stream);
+        return *this;
     }
 
     const std::shared_ptr<Stream>& stream() const
@@ -75,9 +80,9 @@ private:
 };
 
 template<typename... Args>
-Output<Args...> out(std::shared_ptr<Stream> stream, std::shared_ptr<Args>... args)
+Output<Args...> out(std::shared_ptr<Args>... args)
 {
-    return Output<Args...>{std::move(stream), std::move(args)...};
+    return Output<Args...>{std::move(args)...};
 }
 
 template<std::size_t index, typename... Args>
@@ -142,7 +147,7 @@ public:
                Output<DeviceArray<T>> device) const
     {
         copy_to_device_async(*get<0>(host), *get<0>(device), *device.stream());
-        return std::move(device);
+        return device;
     }
 };
 
@@ -155,7 +160,7 @@ public:
                Output<DeviceArray<T>> device) const
     {
         copy_to_host(*get<0>(host), *get<0>(device));
-        return std::move(host);
+        return host;
     }
 };
 
@@ -168,7 +173,7 @@ public:
                Output<DeviceArray<T>> device) const
     {
         copy_to_host_async(*get<0>(host), *get<0>(device), *host.stream());
-        return std::move(host);
+        return host;
     }
 };
 
@@ -180,7 +185,7 @@ public:
     operator()(Output<Parents...> data) const
     {
         data.stream()->sync();
-        return std::move(data);
+        return data;
     }
 };
 
@@ -190,7 +195,7 @@ public:
     Output<RandomGenerator>
     operator()(Output<std::size_t> seed) const
     {
-        return out(nullptr, RandomGenerator::create(*get<0>(seed)));
+        return out(RandomGenerator::create(*get<0>(seed)));
     }
 };
 
