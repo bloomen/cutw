@@ -9,6 +9,7 @@
 #include "DeviceArray.h"
 #include "HostArray.h"
 #include "Stream.h"
+#include "RandomGenerator.h"
 
 namespace cutw
 {
@@ -106,6 +107,19 @@ auto task(const std::string& name,
                                 std::move(parents)...)->named(name);
 }
 
+template<typename Functor, typename... Parents>
+auto task_any(const std::string& name,
+              Functor&& functor,
+              std::shared_ptr<Parents>... parents)
+    -> decltype(transwarp::make_task(detail::TaskTypeAny<sizeof...(parents) == 0>::value,
+                                     std::forward<Functor>(functor),
+                                     std::move(parents)...))
+{
+    return transwarp::make_task(detail::TaskTypeAny<sizeof...(parents) == 0>::value,
+                                std::forward<Functor>(functor),
+                                std::move(parents)...)->named(name);
+}
+
 template<typename T>
 class CopyToDevice : public transwarp::functor
 {
@@ -158,15 +172,37 @@ public:
     }
 };
 
-template<typename Data>
-class StreamSync : public transwarp::functor
+template<typename... Parents>
+class SyncStream : public transwarp::functor
 {
 public:
-    Output<Data>
-    operator()(Output<Data> data) const
+    Output<Parents...>
+    operator()(Output<Parents...> data) const
     {
         data.stream()->sync();
         return std::move(data);
+    }
+};
+
+class CreateRandomGenerator : public transwarp::functor
+{
+public:
+    Output<RandomGenerator>
+    operator()(Output<std::size_t> seed) const
+    {
+        return out(nullptr, RandomGenerator::create(*get<0>(seed)));
+    }
+};
+
+template<typename T>
+class GenerateRandomUniform : public transwarp::functor
+{
+public:
+    Output<DeviceArray<T>>
+    operator()(Output<RandomGenerator> gen, Output<DeviceArray<T>> device) const
+    {
+        get<0>(gen)->generateUniform(*device.stream(), *get<0>(device));
+        return device;
     }
 };
 

@@ -13,20 +13,25 @@ namespace cutw
 class RandomGenerator
 {
 public:
-    RandomGenerator(Stream& stream, std::size_t seed);
+    static std::shared_ptr<RandomGenerator> create(const std::size_t seed)
+    {
+        return std::shared_ptr<RandomGenerator>{new RandomGenerator{seed}};
+    }
+
     ~RandomGenerator();
 
     template<typename T>
-    void generateUniform(DeviceArray<T>& device)
+    void generateUniform(Stream& stream, DeviceArray<T>& device)
     {
-        generateUniform(device.data(), device.size());
+        generateUniform(stream, device.data(), device.size());
     }
 
     curandGenerator_st* get() const;
 
 private:
-    void generateUniform(float* device, std::size_t n);
-    void generateUniform(double* device, std::size_t n);
+    RandomGenerator(std::size_t seed);
+    void generateUniform(Stream& stream, float* device, std::size_t n);
+    void generateUniform(Stream& stream, double* device, std::size_t n);
     struct impl;
     std::unique_ptr<impl> impl_;
 };

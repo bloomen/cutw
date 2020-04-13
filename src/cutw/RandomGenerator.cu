@@ -20,23 +20,24 @@ struct RandomGenerator::impl
     curandGenerator_t gen;
 };
 
-RandomGenerator::RandomGenerator(Stream& stream, const std::size_t seed)
+RandomGenerator::RandomGenerator(const std::size_t seed)
     : impl_{new impl}
 {
     CUTW_CURANDASSERT(curandSetPseudoRandomGeneratorSeed(impl_->gen, seed));
-    CUTW_CURANDASSERT(curandSetStream(impl_->gen, stream.get()));
 }
 
 RandomGenerator::~RandomGenerator()
 {}
 
-void RandomGenerator::generateUniform(float* const device, const std::size_t n)
+void RandomGenerator::generateUniform(Stream& stream, float* const device, const std::size_t n)
 {
+    CUTW_CURANDASSERT(curandSetStream(impl_->gen, stream.get()));
     CUTW_CURANDASSERT(curandGenerateUniform(impl_->gen, device, n));
 }
 
-void RandomGenerator::generateUniform(double* const device, const std::size_t n)
+void RandomGenerator::generateUniform(Stream& stream, double* const device, const std::size_t n)
 {
+    CUTW_CURANDASSERT(curandSetStream(impl_->gen, stream.get()));
     CUTW_CURANDASSERT(curandGenerateUniformDouble(impl_->gen, device, n));
 }
 

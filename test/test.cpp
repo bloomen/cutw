@@ -56,7 +56,7 @@ TEST_CASE("CopyToDevice_CopyToHost_async")
     REQUIRE(dev->size() == 3);
     auto host1_task = cutw::value_task("host1", cutw::out(stream, cutw::HostArray<float>::create(3)));
     auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
-    auto sync_task = cutw::task("sync", cutw::StreamSync<cutw::HostArray<float>>{}, host2_task);
+    auto sync_task = cutw::task("sync", cutw::SyncStream<cutw::HostArray<float>>{}, host2_task);
     sync_task->schedule_all();
     auto host2 = cutw::get<0>(sync_task->get());
     REQUIRE(host2->data());
@@ -64,4 +64,23 @@ TEST_CASE("CopyToDevice_CopyToHost_async")
     REQUIRE(host2->data()[0] == 1);
     REQUIRE(host2->data()[1] == 2);
     REQUIRE(host2->data()[2] == 3);
+}
+
+TEST_CASE("CreateRandomGenerator_GenerateRandomUniform")
+{
+    auto stream = cutw::Stream::create();
+    auto dev_task = cutw::value_task("device", cutw::out(stream, cutw::DeviceArray<float>::create(3)));
+    auto seed_task = cutw::value_task("seed", cutw::out(nullptr, std::make_shared<std::size_t>(42)));
+    auto gen_task = cutw::task("generator", cutw::CreateRandomGenerator{}, seed_task);
+    auto uniform_task = cutw::task("uniform", cutw::GenerateRandomUniform<float>{}, gen_task, dev_task);
+    auto host1_task = cutw::value_task("host1", cutw::out(stream, cutw::HostArray<float>::create(3)));
+    auto host2_task = cutw::task("host2", cutw::CopyToHost<float>{}, host1_task, dev_task);
+    auto sync_task = cutw::task("sync", cutw::SyncStream<cutw::HostArray<float>>{}, host2_task);
+    sync_task->schedule_all();
+    auto host2 = cutw::get<0>(sync_task->get());
+    REQUIRE(host2->data());
+    REQUIRE(host2->size() == 3);
+    REQUIRE(host2->data()[0] > 0.0f);
+    REQUIRE(host2->data()[1] > 0.0f);
+    REQUIRE(host2->data()[2] > 0.0f);
 }
